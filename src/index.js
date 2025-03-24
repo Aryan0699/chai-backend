@@ -1,23 +1,39 @@
-// require('dotenv').config({path:'./env'})
+// require('dotenv').config({path:'./env'}) //always first line
 //load all environment variables at the start //ye sahi hai par not good for code consistency
-
 // import dotenv from 'dotenv'
-import connectDB from "./db/index.js";
 
-// /
-connectDB();
+import connectDB from "./db/index.js";
+import app from "./app.js"
+const port = process.env.PORT || 8000;
+
+//because promise is returned by async functions
+connectDB()
+    .then(() => {
+        app.on("error",(error) => {
+            console.log("Cannot Listen");
+            throw error;
+        })
+        //Server Made
+        app.listen(port, (req, res) => {
+            console.log(`Server is running on: ${port}`)
+        })
+
+    })
+    .catch((err) => {
+        console.log("MongoDB Connection Failed:", err)
+    })
 
 
 /*
-// function connectDB()
-// {
+function connectDB()
+{
 
-// }
+}
 
-// connectDB();
-// //Will work
+connectDB();
+//Will work
 
-//Better Method us IFFE
+Better Method us IFFE
 import express from "express"
 const app = express()
 

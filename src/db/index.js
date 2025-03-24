@@ -1,6 +1,6 @@
 import mongoose, { mongo } from "mongoose";
 import { DB_NAME } from "../constants.js"; //.js important hai
-
+//async promise return karta hai
 const connectDB = async () =>
 {
     try
