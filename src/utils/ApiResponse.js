@@ -8,3 +8,5 @@ class ApiResponse
         this.success=statusCode < 400 //400 se niche sucessful uske upar error se bhejenge general practice 
     }
 }
+
+export default ApiResponse

@@ -17,7 +17,7 @@ const storage = multer.diskStorage({
     }
 })
 //upload is a instance of multer iwth defined storage capacities
-const upload = multer({ 
+export const upload = multer({ 
     // storage: storage //jab both same write once
     storage
 })
