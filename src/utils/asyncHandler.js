@@ -11,14 +11,14 @@ const asyncHandler=(requestHandler)=>
     //requestHandler fn return karta hai promise which we are handling
 }
 
-export { asyncHandler }
+export { asyncHandler } //import bhi aise hi hoga curly brackets me
 
 
 //M2 using try and catch and using Higher Order Functions
 //HOF can accpet a fn as a argument and can return a fn as a variable
-
+// res,req,next come from g\fn only
 //fn hai vo asynchronous function hai to async await lagega and it takes(req,res,next) as parameter
-//fn ko further rk function me pass kiya
+//fn ko further ek function me pass kiya
 // const asyncHandler = (fn) => {
 //     return async (res,req,next) => {
 //         try{

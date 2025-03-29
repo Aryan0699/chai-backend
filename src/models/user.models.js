@@ -69,6 +69,7 @@ const userSchema = new Schema(
 // userSchema.pre("save",()=>{}) //tujhe upar userSchema ka password feild access karna hai to this.password karega but arrow fucntion me this ka referce jo ki userschema hai vo nahi milta
 //password banane me time lagta hai so use async and await
 //all four as parameter available but require only next
+//isModified yaha hi mliega ye upadate bi handle kar lega therefore more usefull varna moddification ka code alag se lokhna padta
 userSchema.pre("save", async function (next) {
     if (!this.isModified("password")) return next();
 
@@ -95,8 +96,9 @@ userSchema.methods.isPasswordCorrect= async function  (password)
 //userSchema pe work karne wale sare methods me mera custom ek aur add karlo
 //sign method to create token
 //Payload  Stores user-related data (like userId, email, role) Predefined claims with special meanings. like expirationtime issued at
-userSchema.methods().generateAccessToken = function ()
+userSchema.methods.generateAccessToken = function () //likh sakte ho access token
 {
+    //ye bhi header.payload.signature hai isme alag nahi hai
     return jwt.sign(
         {
             _id:this._id,
@@ -113,7 +115,20 @@ userSchema.methods().generateAccessToken = function ()
 }
 //both jwt token hi hai
 //DETTO SAME bas yaha thode kam fields since bar bar refresh hoga
-userSchema.methods().generateRefreshToken = function ()
+
+// Server generates Access Token (short expiry) and Refresh Token (long expiry).
+
+// Access Token is sent to the client (stored in memory/local storage).
+
+// Refresh Token is stored securely (HTTP-only cookie or database).
+
+
+// IF Access Token Expires -> Client sends a request to the /refresh endpoint with the Refresh Token.  server has to store it securely and send it automatically when needed.
+
+// Server verifies Refresh Token and issues a new Access Token.
+
+// User stays logged in without re-entering credentials.
+userSchema.methods.generateRefreshToken = function ()
 {
     return jwt.sign(
         {

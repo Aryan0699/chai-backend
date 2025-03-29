@@ -24,5 +24,16 @@ app.use(express.urlencoded({
 }))
 
 app.use(express.static('public'));  
- 
+app.use(cookieParser()) //parse to req.cookies
+
+
+import userRouter from "./routes/user.routes.js";
+//define a url that will be specifically for the user routes like register/login
+//router ko lane ke liye middleware lagega 
+//iss endpoint par control userRouter ke pass aa gaya ab aage ke route vo dekhega
+app.use("/api/v1/users",userRouter)
+
+//ye ek ap hai uska version 1 hai
+
+
 export default app;
