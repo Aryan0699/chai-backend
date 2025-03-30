@@ -1,7 +1,10 @@
-// require('dotenv').config({path:'./env'}) //always first line
+// require('dotenv').config({path:'./.env'}) //always first line
 //load all environment variables at the start //ye sahi hai par not good for code consistency
 // import dotenv from 'dotenv'
-
+import dotenv from "dotenv"
+dotenv.config({
+    path:'./.env' //filename is .env and not just env
+})
 import connectDB from "./db/index.js";
 import app from "./app.js"
 const port = process.env.PORT || 8000;

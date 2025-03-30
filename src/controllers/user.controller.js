@@ -20,17 +20,17 @@ const registerUser =asyncHandler(async (req,res)=>
 
     //form se ya body se data aa rha to req.body me mil jayega
     //if url ke through aa raha then kuch aur
-      const {username,email,fullname,password}=req.body
+      const {username,email,fullName,password}=req.body
+      const fields=["fullName","username","email","password"]
 
-      const fields=["fullname","username","email","password"]
-
-      for(const field in fields)
+      for(const field of fields)  //in me index leta hai of use karo actual values ke liye
       {
+        // console.log(field);
         // if(fullname=="")
-        if(!field) //better check many things
+        if(!req.body[field]) //better check many things //wrond kyuki string hai ki nahi vo check kar raha username ki value nahi
         {
           //throw a object of ApirError 
-          throw new ApiError(400,`${field} is required`)
+          throw new ApiError(400,`${field} is required`) //throw is kind of return only
         }
       }
       //*** Something New
@@ -45,16 +45,22 @@ const registerUser =asyncHandler(async (req,res)=>
       //upload.fields karne par req.files me key value pair store ho jata hai key==name and value of Array of uploaded files
       //avatar[0] means first uploaded file 
       //uska path
+      console.log("Req.Files: ",req.files)
       const avatarLocalPath=req.files?.avatar[0]?.path;
-      console.log(avatarLocalPath)
-      const coverImageLocalPath=req.files?.coverImage[0]?.path;
+      console.log("AvatarPath:",avatarLocalPath)
+      // const coverImageLocalPath=req.files?.coverImage[0]?.path; //possible ki nahi bheja to error show karega
+      let coverImageLocalPath;
+      if(req.files && Array.isArray(req.files.coverImage) && req.files.coverImage.length>0) //kya vo ek array hai kya usme kuch hai
+      {
+        coverImageLocalPath=req.files?.coverImage[0]?.path;
+      }
       
       if(!avatarLocalPath)
       {
         throw new ApiError(400,"Avatar File is required")
       }
       const avatar=await uploadOnCloudinary(avatarLocalPath)
-      const coverImage=await uploadOnCloudinary(coverImageLocalPath )
+      const coverImage=await uploadOnCloudinary(coverImageLocalPath)
 
       //no need still checking
       if(!avatar)
@@ -71,21 +77,25 @@ const registerUser =asyncHandler(async (req,res)=>
     // });
     // await newUser.save();
     ////////
+    console.log("Avatar Respone",avatar);
+    console.log("coverImage Respone",coverImage);
       const newUser=await User.create({
         //password apne aap ban jayega save hone se pehele
         username:username.toLowerCase(),
         email:email,
-        fullname,
+        fullName,
+        password,//password bhejna to padega hi na 
         avatar:avatar.url,
         //coverImage ke liye check nahi lagaya tha ho sakta hai na ho
         coverImage:coverImage?.url || "",
       })
+      console.log("New user:",newUser);
 
       //Good way to check if user created 
       const createdUser=await User.findById(newUser._id)
       .select("-password -refreshToken")
 
-      if(createdUser)
+      if(!createdUser)
       {
         throw new ApiError(500,"Something went wrong while registering the user")
       }
