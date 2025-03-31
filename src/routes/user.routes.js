@@ -1,6 +1,7 @@
 import { Router } from "express";
-import registerUser from "../controllers/user.controller.js";
+import {loginUser, logoutUser, refreshAccessToken, registerUser} from "../controllers/user.controller.js";
 import {upload} from "../middlewares/multer.middleware.js"
+import { verifyJWT } from "../middlewares/auth.middleware.js";
 // created a reference of router just like app
 //router bana liya from function
 const userRouter=Router();
@@ -25,5 +26,11 @@ userRouter.route("/register").post(
     ,registerUser) //1 way to define
 // userRouter.post("/login",loginUser);
 
+userRouter.route("/login").post(loginUser)
+
+//securedRoutes
+//next in verifyJWT ,mera kaam ho gaya ab aage logoutUser ke pass chale jayega
+userRouter.route("/logout").post(verifyJWT,logoutUser)
+userRouter.route("/refresh-token").post(refreshAccessToken)
 
 export default userRouter;

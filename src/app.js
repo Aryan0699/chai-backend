@@ -24,7 +24,7 @@ app.use(express.urlencoded({
 }))
 
 app.use(express.static('public'));  
-app.use(cookieParser()) //parse to req.cookies
+app.use(cookieParser()) //parse to req.cookies res.cookie ka access deta hai
 
 
 import userRouter from "./routes/user.routes.js";

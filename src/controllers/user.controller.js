@@ -1,108 +1,125 @@
-import {asyncHandler} from "../utils/asyncHandler.js"
+import { asyncHandler } from "../utils/asyncHandler.js"
 //jaise export vaise import 
-import {ApiError} from '../utils/ApiError.js'
-import {User} from "../models/user.models.js"
-import {uploadOnCloudinary} from "../utils/cloudinary.js"
+import { ApiError } from '../utils/ApiError.js'
+import { User } from "../models/user.models.js"
+import { uploadOnCloudinary } from "../utils/cloudinary.js"
 import ApiResponse from "../utils/ApiResponse.js"
-//ye User model is like a classs jisse multiple objects called users create ho sakte hai
-const registerUser =asyncHandler(async (req,res)=>
+import jwt, { decode } from "jsonwebtoken"
+const gerneateAccessAndRefreshToken = async (userId) => //user bhi pass kar skate the ye beterr if you want to ensure you're always working with the latest database state.
+// If user might be modified elsewhere in the code before this function runs.
 {
-    //get user details from user
-    //validation  not empty
-    //if already exist : username
-    //check for images and for avatar
-    //upload them to cloudinary,avatar
-    //create user object
-    //create entry in db
-    //remove password and refresh token field from respone
-    //check for usercreation
-    //return res if not then error
+  try {
+    const user = await User.findById(userId)
+    console.log("AccessTokenUser:", user)
+    const accessToken = user.generateAccessToken()
+    const refreshToken = user.generateRefreshToken()
+    // console.log("RF:",refreshToken)
+    user.refreshToken = refreshToken;//db me dalne ke liye
+    // console.log("URF:",user.refreshToken)
+    await user.save({ validateBeforeSave: false });//No validation required just save //yaha required shayd na ho kyuki password already hai agar nahi hota to required hone ke karan error throw kar sakta tha
+    console.log("URF:",refreshToken)
+    return {accessToken, refreshToken}; //***NOTE::jo naam se function ke se return kar deconstruct bhi ussi naam se kar
+  } catch (error) {
+    throw new ApiError(500, "Something wend wrong while generating access and refresh token ")
 
-    //form se ya body se data aa rha to req.body me mil jayega
-    //if url ke through aa raha then kuch aur
-      const {username,email,fullName,password}=req.body
-      const fields=["fullName","username","email","password"]
+  }
+}
 
-      for(const field of fields)  //in me index leta hai of use karo actual values ke liye
-      {
-        // console.log(field);
-        // if(fullname=="")
-        if(!req.body[field]) //better check many things //wrond kyuki string hai ki nahi vo check kar raha username ki value nahi
-        {
-          //throw a object of ApirError 
-          throw new ApiError(400,`${field} is required`) //throw is kind of return only
-        }
-      }
-      //*** Something New
-      const existingUser=await User.findOne({
-        $or:[{username},{email}]
-      })
+//REGISTER HANDLER
+//ye User model is like a classs jisse multiple objects called users create ho sakte hai
+const registerUser = asyncHandler(async (req, res) => {
+  //get user details from user
+  //validation  not empty
+  //if already exist : username
+  //check for images and for avatar
+  //upload them to cloudinary,avatar
+  //create user object
+  //create entry in db
+  //remove password and refresh token field from respone
+  //check for usercreation
+  //return res if not then error
 
-      if(existingUser)
-      {
-        throw new ApiError(409,"User with email or username already exist")
-      }
-      //upload.fields karne par req.files me key value pair store ho jata hai key==name and value of Array of uploaded files
-      //avatar[0] means first uploaded file 
-      //uska path
-      console.log("Req.Files: ",req.files)
-      const avatarLocalPath=req.files?.avatar[0]?.path;
-      console.log("AvatarPath:",avatarLocalPath)
-      // const coverImageLocalPath=req.files?.coverImage[0]?.path; //possible ki nahi bheja to error show karega
-      let coverImageLocalPath;
-      if(req.files && Array.isArray(req.files.coverImage) && req.files.coverImage.length>0) //kya vo ek array hai kya usme kuch hai
-      {
-        coverImageLocalPath=req.files?.coverImage[0]?.path;
-      }
-      
-      if(!avatarLocalPath)
-      {
-        throw new ApiError(400,"Avatar File is required")
-      }
-      const avatar=await uploadOnCloudinary(avatarLocalPath)
-      const coverImage=await uploadOnCloudinary(coverImageLocalPath)
+  //form se ya body se data aa rha to req.body me mil jayega
+  //if url ke through aa raha then kuch aur
+  const { username, email, fullName, password } = req.body
+  const fields = ["fullName", "username", "email", "password"]
 
-      //no need still checking
-      if(!avatar)
-      {
-        throw new ApiError(400,"Avatar file is required!")
-      }
-      //User.create() already creates a new document internally. no need of "new User.create()"
-      //automatically saves as well
-      //ANOTHER METHOD
-    //   const newUser = new User({
-    //     username: username,
-    //     password: hashedPassword,
-    //     email: email,
-    // });
-    // await newUser.save();
-    ////////
-    console.log("Avatar Respone",avatar);
-    console.log("coverImage Respone",coverImage);
-      const newUser=await User.create({
-        //password apne aap ban jayega save hone se pehele
-        username:username.toLowerCase(),
-        email:email,
-        fullName,
-        password,//password bhejna to padega hi na 
-        avatar:avatar.url,
-        //coverImage ke liye check nahi lagaya tha ho sakta hai na ho
-        coverImage:coverImage?.url || "",
-      })
-      console.log("New user:",newUser);
+  for (const field of fields)  //in me index leta hai of use karo actual values ke liye
+  {
+    // console.log(field);
+    // if(fullname=="")
+    if (!req.body[field]) //better check many things //wrond kyuki string hai ki nahi vo check kar raha username ki value nahi
+    {
+      //throw a object of ApirError 
+      throw new ApiError(400, `${field} is required`) //throw is kind of return only
+    }
+  }
+  //*** Something New
+  const existingUser = await User.findOne({
+    $or: [{ username }, { email }]
+  })
 
-      //Good way to check if user created 
-      const createdUser=await User.findById(newUser._id)
-      .select("-password -refreshToken")
+  if (existingUser) {
+    throw new ApiError(409, "User with email or username already exist")
+  }
+  //upload.fields karne par req.files me key value pair store ho jata hai key==name and value of Array of uploaded files
+  //avatar[0] means first uploaded file 
+  //uska path
+  console.log("Req.Files: ", req.files)
+  const avatarLocalPath = req.files?.avatar[0]?.path;
+  console.log("AvatarPath:", avatarLocalPath)
+  // const coverImageLocalPath=req.files?.coverImage[0]?.path; //possible ki nahi bheja to error show karega
+  let coverImageLocalPath;
+  if (req.files && Array.isArray(req.files.coverImage) && req.files.coverImage.length > 0) //kya vo ek array hai kya usme kuch hai
+  {
+    coverImageLocalPath = req.files?.coverImage[0]?.path;
+  }
 
-      if(!createdUser)
-      {
-        throw new ApiError(500,"Something went wrong while registering the user")
-      }
+  if (!avatarLocalPath) {
+    throw new ApiError(400, "Avatar File is required")
+  }
+  const avatar = await uploadOnCloudinary(avatarLocalPath)
+  const coverImage = await uploadOnCloudinary(coverImageLocalPath)
 
-      return res.status(201).json(
-        new ApiResponse(201,createdUser,"User Registered Successfully")
-      )
+  //no need still checking
+  if (!avatar) {
+    throw new ApiError(400, "Avatar file is required!")
+  }
+  //User.create() already creates a new document internally. no need of "new User.create()"
+  //automatically saves as well
+  //ANOTHER METHOD
+  //   const newUser = new User({
+  //     username: username,
+  //     password: hashedPassword,
+  //     email: email,
+  // });
+  // await newUser.save();
+  ////////
+  console.log("Avatar Respone", avatar);
+  console.log("coverImage Respone", coverImage);
+  const newUser = await User.create({
+    //password apne aap ban jayega save hone se pehele
+    username: username.toLowerCase(),
+    email: email,
+    fullName,
+    password,//password bhejna to padega hi na 
+    avatar: avatar.url,
+    //coverImage ke liye check nahi lagaya tha ho sakta hai na ho
+    coverImage: coverImage?.url || "",
+  })
+  console.log("New user:", newUser);
+
+  //Good way to check if user created 
+  const createdUser = await User.findById(newUser._id)
+    .select("-password -refreshToken")
+
+  if (!createdUser) {
+    throw new ApiError(500, "Something went wrong while registering the user")
+  }
+
+  return res.status(201).json(
+    new ApiResponse(201, createdUser, "User Registered Successfully")
+  )
 
 
 
@@ -111,7 +128,166 @@ const registerUser =asyncHandler(async (req,res)=>
 
 
 })
-export default registerUser
+
+
+//LOGIN HANDLER
+const loginUser = asyncHandler(async (req, res) => {
+  //Todo
+  //get user details
+  //validation
+  //find user ki exist karta hai ya nahi
+  //uske baad password check
+  //token dena hai dono
+  //send cookie
+  //Login successfull
+  console.log("Body", req.body);
+  const { username, email, password } = req.body
+  if (!username && !email) {
+    throw new ApiError(400, "username or email is required")
+  }
+  //user ko fecth karne me await nahi lagaya tha usse user.isPasswordGenrator access nahi ho pa raha tha par user print ho raha tha
+  const user = await User.findOne(
+    {
+      $or: [{ username }, { email }] //mongo db operators array ke ander oobject pass kar sakte
+    }
+  )
+
+  if (!user) {
+    throw new ApiError(404, "User does not exist")
+  }
+  //jo methods khudse banaye hai vo user me milenge
+  //mongoose ke User se milenge
+  console.log(user)
+  const isPasswordValid = await user.isPasswordCorrect(password);
+
+  if (!isPasswordValid) {
+    throw new ApiError(401, "Invalid User Credentials")
+  }
+
+  //Ab token dena hai
+  // If user is already available as a valid Mongoose document, passing it directly is fine.
+
+  // If there's any doubt about the freshness of user, passing userId and refetching might be safer.
+  const { accessToken, refreshToken } = await gerneateAccessAndRefreshToken(user._id) //thoda bhi doubt ho use await
+
+  //user jo hai uske refreshtoken field abhi empty hai kyuki jo upar fucntion me hua usko db me to dal diya par ab vo updated user lena padega tujhe
+  const loggedInUser = await User.findById(user._id).select("-password -refreshToken")
+
+  //frontend pe cookies ko modify kar sakte hai 
+  //JS access kar sakta hai to prevent it and that it can be modified on the server onnly ue do httpOnly and secure(sent over https)
+  const options = {
+    httpOnly: true, // Prevents JavaScript access (protection against XSS attacks)
+    secure: true,   // Ensures cookies are only sent over HTTPS
+    sameSite: "Strict", // Prevents CSRF attacks
+  }
+
+  return res
+    .status(200)
+    .cookie("accessToken", accessToken, options)
+    .cookie("refreshToken", refreshToken, options)
+    .json(
+      new ApiResponse(
+        200,
+        {
+          user: loggedInUser, accessToken, refreshToken //yaha isliye bhej rahe ki kya pata use rko kuch kaam se apne local storage pe save karani ho
+        },
+        "User Logged in Successfully"
+      )
+    )
+
+  //M2 was ki updated user bhi return karo and in fn only set user.password = undefined;
+  // user.refreshToken = undefined; db wale user me hai yaha se return hua usme nahi hai ye fields
+
+  //ye token jayenge cookies mai
+
+
+
+
+})
+//verify jwt as a middleware jab bhi request mare uske pehele to check loggedin User hai ki nahi
+const logoutUser = asyncHandler(async (req, res) => {
+  //req.user //ka access middleware auth se mila
+
+  await User.findByIdAndUpdate(req.user._id,
+    {
+      $set: {
+        refreshToken: undefined,
+      },
+    },
+    {
+      new: true
+    } //new updated user de dega
+
+  )
+  const options = {
+    httpOnly: true,
+    secure: true
+  }
+
+  return res.status(200)
+    .clearCookie("accessToken", options)
+    .clearCookie("refreshToken", options)
+    .json(
+      new ApiResponse(200, {}, "User Logged Out")
+    )
+
+  //refresh field update karke save karna padta yaha aone aap ho raha
+
+
+
+})
+
+const refreshAccessToken = asyncHandler(async (req, res) => {
+  //NEED TO FIRST TAKE REFRESH TOKEN
+  const incomingRefreshToken = req.cookies?.refreshToken || req.body.refreshToken
+
+  if (!incomingRefreshToken) {
+    throw new ApiError(400, "Unauthorised request")
+  }
+  //jarruri nahi hai payload ho ho sakta hai khali ho
+ try {
+   const decodedToken = jwt.verify(incomingRefreshToken, process.env.REFRESH_TOKEN_SECRET)
+ 
+   const user = await User.findById(decodedToken._id)
+   if (!user) {
+     throw new ApiError(401, "Invalid Refresh Token");
+   }
+ 
+   if (user?.refreshToken !== incomingRefreshToken) {
+     throw new ApiError(401, "Refresh Token Expired or Used")
+   }
+ 
+   //agar user logout kar gaya to refreshToken nahi bacha ye step nahi lagaya to abhi bhi vo genrate karke de dega aur access mil jayega even after refresh Token expiry
+   //iise naya generate hoga puran gayab to kisine ne le bhi liya hoga to ab use nahi kar sakta varna usme to pehele ka khali hi nahi hota
+   // If an attacker steals a refresh token and you only verify it with JWT, they can keep generating new access tokens indefinitely.
+ 
+   const {accessToken,refreshToken} = await gerneateAccessAndRefreshToken(user._id)
+ 
+   const options={
+     httpOnly:true,
+     secure:true
+   }
+   console.log(refreshToken)
+ 
+     return res.status(200)
+     .cookie("accessToken",accessToken,options)
+     .cookie("refreshToken",refreshToken,options)
+     .json(
+       new ApiResponse(200,{accessToken,refreshToken},"Access Token Refreshed")
+     )
+ } catch (error) {
+    throw new ApiError(401,error?.message || "Invalid Refresh Token"
+      
+    )
+ }
+
+
+}
+)
+export {refreshAccessToken}
+export { registerUser };
+export { loginUser }
+export { logoutUser };
 //ek url create hoga for register uss pe jab bhi rq aayegi to vo isko execute kar dega and user will be registered
 
 //TODO : console log karke req.files req.body existingUser
