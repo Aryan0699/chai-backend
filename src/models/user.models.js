@@ -72,7 +72,7 @@ const userSchema = new Schema(
 //isModified yaha hi mliega ye upadate bi handle kar lega therefore more usefull varna moddification ka code alag se lokhna padta
 userSchema.pre("save", async function (next) {
     if (!this.isModified("password")) return next();
-
+    console.log("Changed password",this.password)
     this.password = await bcrypt.hash(this.password, 10)
     //If you don't use await, this.password will be assigned a Promise object instead of the actual hashed password.
     //equivalent to salt auto generated in above one

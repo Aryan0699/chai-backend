@@ -17,8 +17,8 @@ const gerneateAccessAndRefreshToken = async (userId) => //user bhi pass kar skat
     user.refreshToken = refreshToken;//db me dalne ke liye
     // console.log("URF:",user.refreshToken)
     await user.save({ validateBeforeSave: false });//No validation required just save //yaha required shayd na ho kyuki password already hai agar nahi hota to required hone ke karan error throw kar sakta tha
-    console.log("URF:",refreshToken)
-    return {accessToken, refreshToken}; //***NOTE::jo naam se function ke se return kar deconstruct bhi ussi naam se kar***
+    console.log("URF:", refreshToken)
+    return { accessToken, refreshToken }; //***NOTE::jo naam se function ke se return kar deconstruct bhi ussi naam se kar***
   } catch (error) {
     throw new ApiError(500, "Something wend wrong while generating access and refresh token ")
 
@@ -245,49 +245,175 @@ const refreshAccessToken = asyncHandler(async (req, res) => {
     throw new ApiError(400, "Unauthorised request")
   }
   //jarruri nahi hai payload ho ho sakta hai khali ho
- try {
-   const decodedToken = jwt.verify(incomingRefreshToken, process.env.REFRESH_TOKEN_SECRET)
- 
-   const user = await User.findById(decodedToken._id)
-   if (!user) {
-     throw new ApiError(401, "Invalid Refresh Token");
-   }
- 
-   if (user?.refreshToken !== incomingRefreshToken) {
-     throw new ApiError(401, "Refresh Token Expired or Used")
-   }
-   // refresh token chura liya ab logout hone pe bhi uske pass to  hai bhejke vo acces token generate kara lega 
-   //agar user logout kar gaya to refreshToken nahi bacha ye step nahi lagaya to abhi bhi vo genrate karke de dega aur access mil jayega even after refresh Token expiry
-   //iise naya generate hoga puran gayab to kisine ne le bhi liya hoga to ab use nahi kar sakta varna usme to pehele ka khali hi nahi hota
-   // If an attacker steals a refresh token and you only verify it with JWT, they can keep generating new access tokens indefinitely.
- 
-   const {accessToken,refreshToken} = await gerneateAccessAndRefreshToken(user._id)
- 
-   const options={
-     httpOnly:true,
-     secure:true
-   }
-   console.log(refreshToken)
- 
-     return res.status(200)
-     .cookie("accessToken",accessToken,options)
-     .cookie("refreshToken",refreshToken,options)
-     .json(
-       new ApiResponse(200,{accessToken,refreshToken},"Access Token Refreshed")
-     )
- } catch (error) {
-    throw new ApiError(401,error?.message || "Invalid Refresh Token"
-      
+  try {
+    const decodedToken = jwt.verify(incomingRefreshToken, process.env.REFRESH_TOKEN_SECRET)
+
+    const user = await User.findById(decodedToken._id)
+    if (!user) {
+      throw new ApiError(401, "Invalid Refresh Token");
+    }
+
+    if (user?.refreshToken !== incomingRefreshToken) {
+      throw new ApiError(401, "Refresh Token Expired or Used")
+    }
+    // refresh token chura liya ab logout hone pe bhi uske pass to  hai bhejke vo acces token generate kara lega 
+    //agar user logout kar gaya to refreshToken nahi bacha ye step nahi lagaya to abhi bhi vo genrate karke de dega aur access mil jayega even after refresh Token expiry
+    //iise naya generate hoga puran gayab to kisine ne le bhi liya hoga to ab use nahi kar sakta varna usme to pehele ka khali hi nahi hota
+    // If an attacker steals a refresh token and you only verify it with JWT, they can keep generating new access tokens indefinitely.
+
+    const { accessToken, refreshToken } = await gerneateAccessAndRefreshToken(user._id)
+
+    const options = {
+      httpOnly: true,
+      secure: true
+    }
+    console.log(refreshToken)
+
+    return res.status(200)
+      .cookie("accessToken", accessToken, options)
+      .cookie("refreshToken", refreshToken, options)
+      .json(
+        new ApiResponse(200, { accessToken, refreshToken }, "Access Token Refreshed")
+      )
+  } catch (error) {
+    throw new ApiError(401, error?.message || "Invalid Refresh Token"
+
     )
- }
+  }
 
 
 }
 )
-export {refreshAccessToken}
-export { registerUser };
-export { loginUser }
-export { logoutUser };
+
+
+const changeCurrentPassword = asyncHandler(async (req, res) => {
+  //since jwt verify hone ke badd aayega req.user ka access hai vaha se naya use rnikala taki updated vala ho aur sari fileds ho like password and refreshToken jo ki req.user me nahi hai
+  const { oldPassword, newPassword } = req.body
+  const user = await User.findById(req.user._id)
+
+  const isPasswordCorrect = await user.isPasswordCorrect(oldPassword);
+
+  if (!isPasswordCorrect) {
+    throw new ApiError(401, "Invalid Old Password")
+  }
+
+  user.password = newPassword;
+  await user.save({ validateBeforeSave: false })//koi filed missing hoti to error dega yaha na ho shayd par if then neglect it
+  //password hash apne aap hoke save ho jaeyga
+  return res.status(200)
+    .json(new ApiResponse(200, {}, "Password SuccessFully Changed"))
+})
+
+
+const getCurrentUser = asyncHandler(async (req, res) => {
+  return res.status(200)
+    .json(new ApiResponse(200, req.user, "Current User Fetched Successfully"))
+})
+//files update ka endpoint alag hi rakho less congestion
+const updateAccountDetails = asyncHandler(async (req, res) => {
+  //username not allowed to update
+  const { updatedFullName, updatedEmail } = req.body
+
+  const user = await User.findByIdAndUpdate(
+    req.user._id,
+    {
+      $set: {
+        fullname: updatedFullName,
+        email: updatedEmail
+      }
+    },
+    {
+      new: true //updated return ho
+    }
+  ).select("-password")
+
+  return res.status(200)
+    .json(new ApiResponse(200, user, "Acoount Details Updated SuccessFully"))
+})
+
+const updateUserAvatar = asyncHandler(async (req, res) => {
+
+  //jo bhi upload kiya hai using upload middleware vo req.files me aa jauega
+  //abhi sirf req.file use hoga kuki avatar akela hai array nahi chaiye coverImage to hai hi nahi
+  const avartarLocalPath=req.file?.path
+  if(!avartarLocalPath)
+  {
+    throw new ApiError(400,"Avatar File Missing")
+  }
+
+  const avatar=await uploadOnCloudinary(avartarLocalPath)
+  //Cloudinary se delete nahi kiya hai
+  if(!avatar.url)
+  {
+    throw new ApiResponse(500,"Error Uploading On Cloudinary")
+  }
+
+  const user=await User.findByIdAndUpdate(
+    req.user._id,
+    {
+      $set:
+      {
+        avatar:avatar.url
+      }
+    },
+    {
+      new:true  
+    }
+  ).select("-password")
+
+  return res.status(200)
+  .json(
+    new ApiResponse(200,user,"Avatar Updated SuccessFully")
+  )
+
+})
+
+const updateUserCoverImage = asyncHandler(async (req, res) => {
+
+  //jo bhi upload kiya hai using upload middleware vo req.files me aa jauega
+  //abhi sirf req.file use hoga kuki avatar akela hai array nahi chaiye coverImage to hai hi nahi
+  const coverImageLocalPath=req.file?.path
+  if(!coverImageLocalPath)
+  {
+    throw new ApiError(400,"Cover Image File Missing")
+  }
+
+  const coverImage=await uploadOnCloudinary(coverImageLocalPath)
+  //Cloudinary se delete nahi kiya hai
+  if(!coverImage.url)
+  {
+    throw new ApiResponse(500,"Error Uploading On Cloudinary")
+  }
+
+  const user=await User.findByIdAndUpdate(
+    req.user._id,
+    {
+      $set:
+      {
+        coverImage:coverImage.url
+      }
+    },
+    {
+      new:true  
+    }
+  ).select("-password")
+
+  return res.status(200)
+  .json(
+    new ApiResponse(200,user,"Cover Image Updated SuccessFully")
+  )
+})
+
+export {
+  refreshAccessToken,
+  registerUser,
+  loginUser,
+  logoutUser,
+  changeCurrentPassword,
+  getCurrentUser,
+  updateUserAvatar,
+  updateUserCoverImage
+}
 //ek url create hoga for register uss pe jab bhi rq aayegi to vo isko execute kar dega and user will be registered
 
 //TODO : console log karke req.files req.body existingUser
