@@ -18,7 +18,7 @@ const gerneateAccessAndRefreshToken = async (userId) => //user bhi pass kar skat
     // console.log("URF:",user.refreshToken)
     await user.save({ validateBeforeSave: false });//No validation required just save //yaha required shayd na ho kyuki password already hai agar nahi hota to required hone ke karan error throw kar sakta tha
     console.log("URF:",refreshToken)
-    return {accessToken, refreshToken}; //***NOTE::jo naam se function ke se return kar deconstruct bhi ussi naam se kar
+    return {accessToken, refreshToken}; //***NOTE::jo naam se function ke se return kar deconstruct bhi ussi naam se kar***
   } catch (error) {
     throw new ApiError(500, "Something wend wrong while generating access and refresh token ")
 
@@ -204,7 +204,7 @@ const loginUser = asyncHandler(async (req, res) => {
 
 
 })
-//verify jwt as a middleware jab bhi request mare uske pehele to check loggedin User hai ki nahi
+//verify jwt as a middleware jab bhi request mare uske pehele to check loggedin User hai ki nahi//loggedin hai to uske pass token hoga na
 const logoutUser = asyncHandler(async (req, res) => {
   //req.user //ka access middleware auth se mila
 
@@ -256,7 +256,7 @@ const refreshAccessToken = asyncHandler(async (req, res) => {
    if (user?.refreshToken !== incomingRefreshToken) {
      throw new ApiError(401, "Refresh Token Expired or Used")
    }
- 
+   // refresh token chura liya ab logout hone pe bhi uske pass to  hai bhejke vo acces token generate kara lega 
    //agar user logout kar gaya to refreshToken nahi bacha ye step nahi lagaya to abhi bhi vo genrate karke de dega aur access mil jayega even after refresh Token expiry
    //iise naya generate hoga puran gayab to kisine ne le bhi liya hoga to ab use nahi kar sakta varna usme to pehele ka khali hi nahi hota
    // If an attacker steals a refresh token and you only verify it with JWT, they can keep generating new access tokens indefinitely.
