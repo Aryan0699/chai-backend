@@ -1,5 +1,15 @@
 import { Router } from "express";
-import {loginUser, logoutUser, refreshAccessToken, registerUser} from "../controllers/user.controller.js";
+import {changeCurrentPassword, 
+    getCurrentUser, 
+    getUserChannelProfile, 
+    getWatchHistory, 
+    loginUser, 
+    logoutUser, 
+    refreshAccessToken, 
+    registerUser, 
+    updateUserAvatar, 
+    updateUserCoverImage
+} from "../controllers/user.controller.js";
 import {upload} from "../middlewares/multer.middleware.js"
 import { verifyJWT } from "../middlewares/auth.middleware.js";
 // created a reference of router just like app
@@ -32,5 +42,11 @@ userRouter.route("/login").post(loginUser)
 //next in verifyJWT ,mera kaam ho gaya ab aage logoutUser ke pass chale jayega
 userRouter.route("/logout").post(verifyJWT,logoutUser)
 userRouter.route("/refresh-token").post(refreshAccessToken)
-
+userRouter.route("/change-password").post(verifyJWT,changeCurrentPassword)
+userRouter.route("/current-user").get(verifyJWT,getCurrentUser)
+userRouter.route("/update-account").patch(verifyJWT,updateAccountDetails) //post nahi hoga kyuki pura change karega
+userRouter.route("/upadte-avatar").post(verifyJWT,upload.single("avatar"),updateUserAvatar)//patch ki post ?? 
+userRouter.route("/cover-image").post(verifyJWT,upload.single("coverImage"),updateUserCoverImage)
+userRouter.route("/channel/:username").get(verifyJWT,getUserChannelProfile)
+userRouter.route("/history").get(verifyJWT,getWatchHistory)
 export default userRouter;

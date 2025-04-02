@@ -575,15 +575,15 @@ const getWatchHistory=asyncHandler(async (req,res)=>
 })
 
 export {
-  refreshAccessToken,
   registerUser,
   loginUser,
   logoutUser,
+  refreshAccessToken,
   changeCurrentPassword,
-  getCurrentUser,
   updateUserAvatar,
   updateUserCoverImage,
   updateAccountDetails,
+  getCurrentUser,
   getUserChannelProfile,
   getWatchHistory
 }
