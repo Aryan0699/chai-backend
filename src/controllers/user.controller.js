@@ -5,6 +5,9 @@ import { User } from "../models/user.models.js"
 import { uploadOnCloudinary } from "../utils/cloudinary.js"
 import ApiResponse from "../utils/ApiResponse.js"
 import jwt, { decode } from "jsonwebtoken"
+
+import { v2 as cloudinary } from "cloudinary"
+import mongoose, { mongo } from "mongoose"
 const gerneateAccessAndRefreshToken = async (userId) => //user bhi pass kar skate the ye beterr if you want to ensure you're always working with the latest database state.
 // If user might be modified elsewhere in the code before this function runs.
 {
@@ -314,6 +317,9 @@ const updateAccountDetails = asyncHandler(async (req, res) => {
   //username not allowed to update
   const { updatedFullName, updatedEmail } = req.body
 
+  if (!updatedEmail || !updatedFullName) { //dono hi hone chaiye empty nahi chaiye
+    throw new ApiError(400, "All Fields required")
+  }
   const user = await User.findByIdAndUpdate(
     req.user._id,
     {
@@ -335,36 +341,52 @@ const updateUserAvatar = asyncHandler(async (req, res) => {
 
   //jo bhi upload kiya hai using upload middleware vo req.files me aa jauega
   //abhi sirf req.file use hoga kuki avatar akela hai array nahi chaiye coverImage to hai hi nahi
-  const avartarLocalPath=req.file?.path
-  if(!avartarLocalPath)
-  {
-    throw new ApiError(400,"Avatar File Missing")
+  const avartarLocalPath = req.file?.path
+  if (!avartarLocalPath) {
+    throw new ApiError(400, "Avatar File Missing")
   }
 
-  const avatar=await uploadOnCloudinary(avartarLocalPath)
+  const avatar = await uploadOnCloudinary(avartarLocalPath)
   //Cloudinary se delete nahi kiya hai
-  if(!avatar.url)
-  {
-    throw new ApiResponse(500,"Error Uploading On Cloudinary")
+  if (!avatar.url) {
+    throw new ApiResponse(500, "Error Uploading On Cloudinary")
   }
 
-  const user=await User.findByIdAndUpdate(
+  const userBeforeUpdate = await User.findById(req.user._id)
+  const avatarDeleted = userBeforeUpdate.avatar;
+
+  const publicID = avatar.split("/upload/")[1]?.split(".")[0];
+  if (!publicID) {
+    throw new ApiError(500, "Older Avatar Cannot Be Found")
+  }
+
+  try {
+    const result = await cloudinary.uploader.destroy(publicID)
+  } catch (error) {
+    throw new ApiError(500, error?.message || "Cannot Delete Older Avatar")
+
+  }
+  console.log("Deleted Avatar:", result);
+
+
+  const user = await User.findByIdAndUpdate(
     req.user._id,
     {
       $set:
       {
-        avatar:avatar.url
+        avatar: avatar.url
       }
     },
     {
-      new:true  
+      new: true
     }
   ).select("-password")
 
+
   return res.status(200)
-  .json(
-    new ApiResponse(200,user,"Avatar Updated SuccessFully")
-  )
+    .json(
+      new ApiResponse(200, user, "Avatar Updated SuccessFully")
+    )
 
 })
 
@@ -372,36 +394,184 @@ const updateUserCoverImage = asyncHandler(async (req, res) => {
 
   //jo bhi upload kiya hai using upload middleware vo req.files me aa jauega
   //abhi sirf req.file use hoga kuki avatar akela hai array nahi chaiye coverImage to hai hi nahi
-  const coverImageLocalPath=req.file?.path
-  if(!coverImageLocalPath)
-  {
-    throw new ApiError(400,"Cover Image File Missing")
+  const coverImageLocalPath = req.file?.path
+  if (!coverImageLocalPath) {
+    throw new ApiError(400, "Cover Image File Missing")
   }
 
-  const coverImage=await uploadOnCloudinary(coverImageLocalPath)
+  const coverImage = await uploadOnCloudinary(coverImageLocalPath)
   //Cloudinary se delete nahi kiya hai
-  if(!coverImage.url)
-  {
-    throw new ApiResponse(500,"Error Uploading On Cloudinary")
+  if (!coverImage.url) {
+    throw new ApiResponse(500, "Error Uploading On Cloudinary")
   }
 
-  const user=await User.findByIdAndUpdate(
+  const user = await User.findByIdAndUpdate(
     req.user._id,
     {
       $set:
       {
-        coverImage:coverImage.url
+        coverImage: coverImage.url
       }
     },
     {
-      new:true  
+      new: true
     }
   ).select("-password")
 
   return res.status(200)
-  .json(
-    new ApiResponse(200,user,"Cover Image Updated SuccessFully")
-  )
+    .json(
+      new ApiResponse(200, user, "Cover Image Updated SuccessFully")
+    )
+})
+
+//channel pe url ke through jaoge to uss url.params se channel details aa jayegi
+const getUserChannelProfile = asyncHandler(async (req, res) => {
+  const { username } = req.params;
+  if (!username?.trim()) //Removes leading and trailing spaces from a string.
+  {
+    throw new ApiError(400, "username is missing")
+  }
+  //user leke phir id ke basis pe pipeline lagane se better hai use $match
+  //   const user = await User.findOne({ _id: userId }); // Find user first
+  //   const result = await User.aggregate([
+  //   { $match: { _id: userId } }, // Then match again in aggregation
+  //   { $project: { name: 1, age: 1 } }
+  // ]);Two Database Queries:involved
+  //Each curly bracket represent one pipeline
+  //Array save hoga  channel me
+  //Array me ek hi object hoga apne me
+  //URL se channel wale user ka username aayega
+  const channel=await User.aggregate([
+    {
+
+      //vo user aa gaya jiska channel hai
+      $match:{
+        username:username?.toLowerCase() 
+      }
+    },
+    //ab subcriber air subcription kitne hai vo dekhna hai
+    {
+      //kis model ko user me join karna hai kis basis pe
+      $lookup:{
+        from:"subscriptions",
+        localField:"_id",
+        foreignField:"channel",
+        as: "subscribers" //ek subscription documnet return hoga jisme ki channel me chai aur code hoga aur scubcriber me alag alag ho sakte hai
+      }
+    },
+    //ek PROBLEM hai ki local field foreignField ka data type macth hona chaiye varna compare nahi hoga par yaha nahi kiya hai
+    {
+      $lookup:{
+        from:"subscriptions",
+        localField:"_id",
+        foreignField:"subscriber",
+        as: "subscribedTo"
+      }
+    },
+    {
+      $addFields:{
+        subscribersCount:{
+          $size:"$subscribers"
+        },
+        channelsSubscribedToCount:
+        {
+          $size:"$subscribedTo"
+        },
+        isSubscribed:
+        {
+          $cond:{
+            if:{
+              //arrya object dono ke liye valid ander kya hai
+              //possible error
+              //no need of $subscribers[0].subscriber mongodb autommatically dekh lega
+                $in:[req.user?._id,"$subscribers.subscriber"] //doubt can we use-> subscription.subscriber -> No as it is not a field 
+            },
+            then:true,
+            else:false
+          }
+        }
+      }
+    },
+    {
+      $project:{
+        fullname:1,
+        username:1,
+        subscribersCount:1,
+        channelsSubscribedToCount:1,
+        isSubscribed:1,
+        avatar:1,
+        coverImage:1,
+        email:1,
+      }
+    }
+    
+  ])
+
+  if(!channel?.length)
+  {
+    throw new ApiError(400,"Channel Doesn't Exist")
+  }
+  console.log(channel);
+  return res.status(200)
+  .json(new ApiResponse(200,channel[0],"User Channel fetched successfully"))
+
+})
+
+
+//User no jo watchHistiry hai usme video ke id hai naki datils hume details chaiye isliye id match karke details la rahe
+//ab ek video me bhi uske owner ke liye id hai user ki naki pura user detial vo bhi lookup karke id macth karke la rahe 
+//since arry ke format me answer aata hai isliye addField kare usko object me convert kiya
+//kyuki user ek hi hai to Arrya jo return hua usme bhi ek hi object hai isliye user[0] kiya
+
+const getWatchHistory=asyncHandler(async (req,res)=>
+{
+  // req.user._id ==> give string 
+  //jis user ne login kiya hai
+  const user=await User.aggregate([
+    {
+      $match:{
+        _id:new mongoose.Types.ObjectId(req.user._id) //varna match nahi hoga
+      }
+    },
+    { //user ki field hogi par user available nahi hoga
+        $lookup:
+        {
+          from:"videos",
+          localField:"watchHistory", //watchHistory to kali hai kaise match hoga kya chal raha*****
+          foreignField:"_id", //watchHistory me pehelese video ki ids hai jinko match karke pura video ka subkuch manga liya to usme owner pehele se hona chaiye na???
+          as:"watchHistory",
+          pipeline:[
+            {
+              $lookup:{
+                  from:"users",
+                  localField:"owner",
+                  foreignField:"_id",//id se pura user aa gaya usme se bhi 3 hi fields li apan ne
+                  as:"owner",
+                  pipeline:[
+                    {
+                      $project:{
+                        fullname:1,
+                        username:1,
+                        avatar
+                      }
+                    }
+                  ]
+              }
+            },
+            {
+              $addFields:{
+                owner:{
+                  $first:"$owner" //Array ke ek hi obj aayega owner unique hai usko le liya  
+                }
+              }
+            }
+          ]
+        }
+    }
+  ])
+
+  return res.status(200)
+  .json(new ApiResponse(200,user[0].watchHistory,"Watch History Fetched SuccessFully"))
 })
 
 export {
@@ -412,7 +582,10 @@ export {
   changeCurrentPassword,
   getCurrentUser,
   updateUserAvatar,
-  updateUserCoverImage
+  updateUserCoverImage,
+  updateAccountDetails,
+  getUserChannelProfile,
+  getWatchHistory
 }
 //ek url create hoga for register uss pe jab bhi rq aayegi to vo isko execute kar dega and user will be registered
 
