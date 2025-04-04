@@ -56,6 +56,6 @@ const videoSchema=new Schema(
 )
 //as a plugin inject hota hai
 videoSchema.plugin(mongooseAggregatePaginate)
-
+//sare videos ek sath nahi de sakte na ek page pe kitne uske baad vale aage to uske liye use hoga
 export const Video=mongoose.model("Video",videoSchema);
 
