@@ -8,7 +8,8 @@ import {changeCurrentPassword,
     refreshAccessToken, 
     registerUser, 
     updateUserAvatar, 
-    updateUserCoverImage
+    updateUserCoverImage,
+    updateAccountDetails
 } from "../controllers/user.controller.js";
 import {upload} from "../middlewares/multer.middleware.js"
 import { verifyJWT } from "../middlewares/auth.middleware.js";
@@ -45,7 +46,7 @@ userRouter.route("/refresh-token").post(refreshAccessToken)
 userRouter.route("/change-password").post(verifyJWT,changeCurrentPassword)
 userRouter.route("/current-user").get(verifyJWT,getCurrentUser)
 userRouter.route("/update-account").patch(verifyJWT,updateAccountDetails) //post nahi hoga kyuki pura change karega
-userRouter.route("/upadte-avatar").post(verifyJWT,upload.single("avatar"),updateUserAvatar)//patch ki post ?? 
+userRouter.route("/update-avatar").post(verifyJWT,upload.single("avatar"),updateUserAvatar)//patch ki post ?? 
 userRouter.route("/cover-image").post(verifyJWT,upload.single("coverImage"),updateUserCoverImage)
 userRouter.route("/channel/:username").get(verifyJWT,getUserChannelProfile)
 userRouter.route("/history").get(verifyJWT,getWatchHistory)

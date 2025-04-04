@@ -211,17 +211,21 @@ const loginUser = asyncHandler(async (req, res) => {
 const logoutUser = asyncHandler(async (req, res) => {
   //req.user //ka access middleware auth se mila
 
-  await User.findByIdAndUpdate(req.user._id,
+  const user=await User.findByIdAndUpdate(req.user._id,
     {
-      $set: {
-        refreshToken: undefined,
-      },
+      // $set: {
+      //   refreshToken: undefined, //undefined fileds ko mongoDb ignore kar deta hai updates me to vo same hi reh jaeyga
+      // },
+      $unset:{
+        refreshToken:1,//removes the field from document /better baadme jab login kare to apne app naya hi banega user to refreshToken hoga hi usme
+      }
     },
     {
       new: true
     } //new updated user de dega
 
   )
+  console.log("LoggedOutUser:",user)
   const options = {
     httpOnly: true,
     secure: true
@@ -315,16 +319,24 @@ const getCurrentUser = asyncHandler(async (req, res) => {
 //files update ka endpoint alag hi rakho less congestion
 const updateAccountDetails = asyncHandler(async (req, res) => {
   //username not allowed to update
-  const { updatedFullName, updatedEmail } = req.body
+  let { updatedFullName, updatedEmail } = req.body //make it let as value later changing
 
-  if (!updatedEmail || !updatedFullName) { //dono hi hone chaiye empty nahi chaiye
-    throw new ApiError(400, "All Fields required")
+  if (!updatedEmail && !updatedFullName) { //dono hi hone chaiye empty nahi chaiye
+    throw new ApiError(400, "Atleast one field required")
   }
+  
+  if (!updatedEmail) {
+    updatedEmail = req.user.email
+  }
+  if (!updatedFullName) {
+    updatedFullName = req.user.fullName
+  }
+  console.log("Updates:",updatedFullName," ",updatedEmail)
   const user = await User.findByIdAndUpdate(
     req.user._id,
     {
       $set: {
-        fullname: updatedFullName,
+        fullName: updatedFullName, //dont do typos fullname nahi fullName hai
         email: updatedEmail
       }
     },
@@ -355,18 +367,19 @@ const updateUserAvatar = asyncHandler(async (req, res) => {
   const userBeforeUpdate = await User.findById(req.user._id)
   const avatarDeleted = userBeforeUpdate.avatar;
 
-  const publicID = avatar.split("/upload/")[1]?.split(".")[0];
+  const publicID = avatar.url.split("/upload/")[1]?.split(".")[0];
   if (!publicID) {
     throw new ApiError(500, "Older Avatar Cannot Be Found")
   }
 
   try {
     const result = await cloudinary.uploader.destroy(publicID)
+    console.log("Deleted Avatar:", result); //agar nahi exist karta to be handle ho jayega not found message aayega 
   } catch (error) {
     throw new ApiError(500, error?.message || "Cannot Delete Older Avatar")
 
   }
-  console.log("Deleted Avatar:", result);
+  
 
 
   const user = await User.findByIdAndUpdate(
@@ -441,79 +454,78 @@ const getUserChannelProfile = asyncHandler(async (req, res) => {
   //Array save hoga  channel me
   //Array me ek hi object hoga apne me
   //URL se channel wale user ka username aayega
-  const channel=await User.aggregate([
+  const channel = await User.aggregate([
     {
 
       //vo user aa gaya jiska channel hai
-      $match:{
-        username:username?.toLowerCase() 
+      $match: {
+        username: username?.toLowerCase()
       }
     },
     //ab subcriber air subcription kitne hai vo dekhna hai
     {
       //kis model ko user me join karna hai kis basis pe
-      $lookup:{
-        from:"subscriptions",
-        localField:"_id",
-        foreignField:"channel",
+      $lookup: {
+        from: "subscriptions",
+        localField: "_id",
+        foreignField: "channel",
         as: "subscribers" //ek subscription documnet return hoga jisme ki channel me chai aur code hoga aur scubcriber me alag alag ho sakte hai
       }
     },
     //ek PROBLEM hai ki local field foreignField ka data type macth hona chaiye varna compare nahi hoga par yaha nahi kiya hai
     {
-      $lookup:{
-        from:"subscriptions",
-        localField:"_id",
-        foreignField:"subscriber",
+      $lookup: {
+        from: "subscriptions",
+        localField: "_id",
+        foreignField: "subscriber",
         as: "subscribedTo"
       }
     },
     {
-      $addFields:{
-        subscribersCount:{
-          $size:"$subscribers"
+      $addFields: {
+        subscribersCount: {
+          $size: "$subscribers"
         },
         channelsSubscribedToCount:
         {
-          $size:"$subscribedTo"
+          $size: "$subscribedTo"
         },
         isSubscribed:
         {
-          $cond:{
-            if:{
+          $cond: {
+            if: {
               //arrya object dono ke liye valid ander kya hai
               //possible error
               //no need of $subscribers[0].subscriber mongodb autommatically dekh lega
-                $in:[req.user?._id,"$subscribers.subscriber"] //doubt can we use-> subscription.subscriber -> No as it is not a field 
+              $in: [req.user?._id, "$subscribers.subscriber"] //doubt can we use-> subscription.subscriber -> No as it is not a field 
             },
-            then:true,
-            else:false
+            then: true,
+            else: false
           }
         }
       }
     },
     {
-      $project:{
-        fullname:1,
-        username:1,
-        subscribersCount:1,
-        channelsSubscribedToCount:1,
-        isSubscribed:1,
-        avatar:1,
-        coverImage:1,
-        email:1,
+      $project: {
+        fullname: 1,
+        username: 1,
+        subscribersCount: 1,
+        channelsSubscribedToCount: 1,
+        isSubscribed: 1,
+        avatar: 1,
+        coverImage: 1,
+        email: 1,
       }
     }
-    
+
   ])
 
-  if(!channel?.length)
-  {
-    throw new ApiError(400,"Channel Doesn't Exist")
+  if (!channel?.length) {
+    throw new ApiError(400, "Channel Doesn't Exist")
   }
   console.log(channel);
   return res.status(200)
-  .json(new ApiResponse(200,channel[0],"User Channel fetched successfully"))
+    .json(new ApiResponse(200, channel[0], "User Channel fetched successfully"))
 
 })
 
@@ -523,55 +535,54 @@ const getUserChannelProfile = asyncHandler(async (req, res) => {
 //since arry ke format me answer aata hai isliye addField kare usko object me convert kiya
 //kyuki user ek hi hai to Arrya jo return hua usme bhi ek hi object hai isliye user[0] kiya
 
-const getWatchHistory=asyncHandler(async (req,res)=>
-{
+const getWatchHistory = asyncHandler(async (req, res) => {
   // req.user._id ==> give string 
   //jis user ne login kiya hai
-  const user=await User.aggregate([
+  const user = await User.aggregate([
     {
-      $match:{
-        _id:new mongoose.Types.ObjectId(req.user._id) //varna match nahi hoga
+      $match: {
+        _id: new mongoose.Types.ObjectId(req.user._id) //varna match nahi hoga
       }
     },
     { //user ki field hogi par user available nahi hoga
-        $lookup:
-        {
-          from:"videos",
-          localField:"watchHistory", //watchHistory to kali hai kaise match hoga kya chal raha*****
-          foreignField:"_id", //watchHistory me pehelese video ki ids hai jinko match karke pura video ka subkuch manga liya to usme owner pehele se hona chaiye na???
-          as:"watchHistory",
-          pipeline:[
-            {
-              $lookup:{
-                  from:"users",
-                  localField:"owner",
-                  foreignField:"_id",//id se pura user aa gaya usme se bhi 3 hi fields li apan ne
-                  as:"owner",
-                  pipeline:[
-                    {
-                      $project:{
-                        fullname:1,
-                        username:1,
-                        avatar
-                      }
-                    }
-                  ]
-              }
-            },
-            {
-              $addFields:{
-                owner:{
-                  $first:"$owner" //Array ke ek hi obj aayega owner unique hai usko le liya  
+      $lookup:
+      {
+        from: "videos",
+        localField: "watchHistory", //watchHistory to kali hai kaise match hoga kya chal raha*****
+        foreignField: "_id", //watchHistory me pehelese video ki ids hai jinko match karke pura video ka subkuch manga liya to usme owner pehele se hona chaiye na???
+        as: "watchHistory",
+        pipeline: [
+          {
+            $lookup: {
+              from: "users",
+              localField: "owner",
+              foreignField: "_id",//id se pura user aa gaya usme se bhi 3 hi fields li apan ne
+              as: "owner",
+              pipeline: [
+                {
+                  $project: {
+                    fullname: 1,
+                    username: 1,
+                    avatar:1  
+                  }
                 }
+              ]
+            }
+          },
+          {
+            $addFields: {
+              owner: {
+                $first: "$owner" //Array ke ek hi obj aayega owner unique hai usko le liya  
               }
             }
-          ]
-        }
+          }
+        ]
+      }
     }
   ])
 
   return res.status(200)
-  .json(new ApiResponse(200,user[0].watchHistory,"Watch History Fetched SuccessFully"))
+    .json(new ApiResponse(200, user[0].watchHistory, "Watch History Fetched SuccessFully"))
 })
 
 export {
