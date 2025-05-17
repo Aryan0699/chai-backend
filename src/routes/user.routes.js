@@ -51,3 +51,4 @@ userRouter.route("/cover-image").post(verifyJWT,upload.single("coverImage"),upda
 userRouter.route("/channel/:username").get(verifyJWT,getUserChannelProfile)
 userRouter.route("/history").get(verifyJWT,getWatchHistory)
 export default userRouter;
+

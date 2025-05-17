@@ -7,7 +7,7 @@ import ApiResponse from "../utils/ApiResponse.js"
 import jwt, { decode } from "jsonwebtoken"
 
 import { v2 as cloudinary } from "cloudinary"
-import mongoose, { mongo } from "mongoose"
+import mongoose from "mongoose"
 const gerneateAccessAndRefreshToken = async (userId) => //user bhi pass kar skate the ye beterr if you want to ensure you're always working with the latest database state.
 // If user might be modified elsewhere in the code before this function runs.
 {
@@ -86,7 +86,7 @@ const registerUser = asyncHandler(async (req, res) => {
 
   //no need still checking
   if (!avatar) {
-    throw new ApiError(400, "Avatar file is required!")
+    throw new ApiError(400, "Avatar file is required!") //ek object return ho jayega jisme sari info hai
   }
   //User.create() already creates a new document internally. no need of "new User.create()"
   //automatically saves as well
@@ -121,7 +121,7 @@ const registerUser = asyncHandler(async (req, res) => {
   }
 
   return res.status(201).json(
-    new ApiResponse(201, createdUser, "User Registered Successfully")
+    new ApiResponse(201, createdUser, "User Registered Successfully") //object with all information returned
   )
 
 
@@ -179,7 +179,7 @@ const loginUser = asyncHandler(async (req, res) => {
   //frontend pe cookies ko modify kar sakte hai 
   //JS access kar sakta hai to prevent it and that it can be modified on the server onnly ue do httpOnly and secure(sent over https)
   const options = {
-    httpOnly: true, // Prevents JavaScript access (protection against XSS attacks)
+    httpOnly: true, // Prevents JavaScript access (protection against XSS attacks)//only modified at server
     secure: true,   // Ensures cookies are only sent over HTTPS
     sameSite: "Strict", // Prevents CSRF attacks
   }
@@ -210,7 +210,7 @@ const loginUser = asyncHandler(async (req, res) => {
 //verify jwt as a middleware jab bhi request mare uske pehele to check loggedin User hai ki nahi//loggedin hai to uske pass token hoga na
 const logoutUser = asyncHandler(async (req, res) => {
   //req.user //ka access middleware auth se mila
-
+  //phir user fetch kiya taki naye changes ho to aa jaye
   const user=await User.findByIdAndUpdate(req.user._id,
     {
       // $set: {
@@ -222,7 +222,7 @@ const logoutUser = asyncHandler(async (req, res) => {
     },
     {
       new: true
-    } //new updated user de dega
+    } //new updated user de dega varna by-default flase hota hai matlab update se pehle eka return karega
 
   )
   console.log("LoggedOutUser:",user)
@@ -230,7 +230,7 @@ const logoutUser = asyncHandler(async (req, res) => {
     httpOnly: true,
     secure: true
   }
-
+  //main logout yaha hua
   return res.status(200)
     .clearCookie("accessToken", options)
     .clearCookie("refreshToken", options)
@@ -252,7 +252,9 @@ const refreshAccessToken = asyncHandler(async (req, res) => {
     throw new ApiError(400, "Unauthorised request")
   }
   //jarruri nahi hai payload ho ho sakta hai khali ho
+  //yaha try catch asynchandler ke baad bhi lagana jaruri hai kyuki jwt.verify synchronous hai await me error aata to asynchandler error de deta paar synchrnous me nahi dega
   try {
+    //  genuinely created by us and still within its valid time?”
     const decodedToken = jwt.verify(incomingRefreshToken, process.env.REFRESH_TOKEN_SECRET)
 
     const user = await User.findById(decodedToken._id)
@@ -363,11 +365,12 @@ const updateUserAvatar = asyncHandler(async (req, res) => {
   if (!avatar.url) {
     throw new ApiResponse(500, "Error Uploading On Cloudinary")
   }
-
+  
   const userBeforeUpdate = await User.findById(req.user._id)
   const avatarDeleted = userBeforeUpdate.avatar;
-
-  const publicID = avatar.url.split("/upload/")[1]?.split(".")[0];
+  console.log(avatarDeleted);
+  const publicID = avatarDeleted.split("/upload/")[1]?.split(".")[0].split("/")[1];
+  console.log(publicID);
   if (!publicID) {
     throw new ApiError(500, "Older Avatar Cannot Be Found")
   }
@@ -418,6 +421,21 @@ const updateUserCoverImage = asyncHandler(async (req, res) => {
     throw new ApiResponse(500, "Error Uploading On Cloudinary")
   }
 
+// http://res.cloudinary.com/daffyayyj/image/upload/v1747296595/thv0lreqkygxe6jsvrjg.jpg
+  const coverImageToDelete=req.user.coverImage;
+  console.log(coverImageToDelete);
+  const public_id=coverImageToDelete.split("/upload/")[1].split(".")[0].split("/")[1];
+  console.log(public_id)
+  try{
+    const result= await cloudinary.uploader.destroy(public_id);
+    console.log("Deleted CoverImage:",result);
+
+  }
+  catch(error){
+    throw new ApiError(500,error.message || "Cannot delete CoverImage")
+
+  }
+
   const user = await User.findByIdAndUpdate(
     req.user._id,
     {
@@ -450,7 +468,7 @@ const getUserChannelProfile = asyncHandler(async (req, res) => {
   //   { $match: { _id: userId } }, // Then match again in aggregation
   //   { $project: { name: 1, age: 1 } }
   // ]);Two Database Queries:involved
-  //Each curly bracket represent one pipeline
+  //Each curly bracket represent one pipeline(each object of array)
   //Array save hoga  channel me
   //Array me ek hi object hoga apne me
   //URL se channel wale user ka username aayega
@@ -462,17 +480,19 @@ const getUserChannelProfile = asyncHandler(async (req, res) => {
         username: username?.toLowerCase()
       }
     },
-    //ab subcriber air subcription kitne hai vo dekhna hai
+    //ab subcriber aur subcription kitne hai vo dekhna hai
     {
       //kis model ko user me join karna hai kis basis pe
       $lookup: {
-        from: "subscriptions",
+        from: "subscriptions", //db me jo naam hai vo use karna padega
         localField: "_id",
         foreignField: "channel",
         as: "subscribers" //ek subscription documnet return hoga jisme ki channel me chai aur code hoga aur scubcriber me alag alag ho sakte hai
       }
     },
     //ek PROBLEM hai ki local field foreignField ka data type macth hona chaiye varna compare nahi hoga par yaha nahi kiya hai
+    //solution //dono user._id  hi hogi(channel and subscriber)
+    //$lookup don't show up in user schema sirf yahi tak limited
     {
       $lookup: {
         from: "subscriptions",
@@ -497,6 +517,7 @@ const getUserChannelProfile = asyncHandler(async (req, res) => {
               //arrya object dono ke liye valid ander kya hai
               //possible error
               //no need of $subscribers[0].subscriber mongodb autommatically dekh lega
+              //subscribers Subscription Schema ka object hai jisme channel aur subscriber dono hai to usme se subscriber chaiye
               $in: [req.user?._id, "$subscribers.subscriber"] //doubt can we use-> subscription.subscriber -> No as it is not a field 
             },
             then: true,
@@ -541,14 +562,14 @@ const getWatchHistory = asyncHandler(async (req, res) => {
   const user = await User.aggregate([
     {
       $match: {
-        _id: new mongoose.Types.ObjectId(req.user._id) //varna match nahi hoga
+        _id: new mongoose.Types.ObjectId(req.user._id) //varna match nahi hoga//_id ObjectId type hai 
       }
     },
     { //user ki field hogi par user available nahi hoga
       $lookup:
       {
         from: "videos",
-        localField: "watchHistory", //watchHistory to kali hai kaise match hoga kya chal raha*****
+        localField: "watchHistory", //watchHistory to kali hai kaise match hoga kya chal raha*****//khai nahi hai
         foreignField: "_id", //watchHistory me pehelese video ki ids hai jinko match karke pura video ka subkuch manga liya to usme owner pehele se hona chaiye na???
         as: "watchHistory",
         pipeline: [

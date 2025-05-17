@@ -1,4 +1,4 @@
-class ApiError extends Error
+class ApiError extends Error //jo in built 
 {
     //apna contructor bana rahe overwrite
     constructor(
@@ -11,7 +11,7 @@ class ApiError extends Error
         super(message) //parent constructor message leta hoga as parameter
         //this.var var set karne ke liye parent constructor ko super method ke through bulana hi padta hai
         //super se u can acccess methods of parent class
-
+        //error class ke var hai nko set kar rahe
         this.statusCode=statusCode //dono me hai to overwrite ho jayega
         this.data=null; //read about this
         this.message=message//ig need nahi hai --yess correct

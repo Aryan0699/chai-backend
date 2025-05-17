@@ -10,7 +10,7 @@ const videoSchema=new Schema(
             type:String, //url cloudinary se aayega
             required:true
         },
-        thumbnail:
+        thumbnail:// front wali image hoti hai
         {
             type:String, //url cloudinary se aayega
             required:true

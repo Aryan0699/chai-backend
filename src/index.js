@@ -3,7 +3,7 @@
 // import dotenv from 'dotenv'
 import dotenv from "dotenv"
 dotenv.config({
-    path:'./.env' //filename is .env and not just env
+    path:'./.env' //filename is .env and not just env bata diya ki env file yaha exist karti hai
 })
 import connectDB from "./db/index.js";
 import app from "./app.js"
@@ -11,7 +11,7 @@ const port = process.env.PORT || 8000;
 
 //because promise is returned by async functions
 connectDB()
-    .then(() => {
+    .then(() => { //agar connect ho gaya
         app.on("error",(error) => {
             console.log("Cannot Listen");
             throw error;

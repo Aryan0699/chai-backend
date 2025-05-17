@@ -1,7 +1,7 @@
 import mongoose ,{mongo, Schema} from "mongoose";
 import { User } from "./user.models";
 
-
+//dono user._id  hi hogi
 const subscriptionSchema=new Schema({
 
     subscriber:{ 

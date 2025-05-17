@@ -7,6 +7,7 @@ const connectDB = async () =>
     {
         //on connection ye object return karta hai mongoose reponse aata hai
         const connectionInstance=await mongoose.connect(`${process.env.MONGODB_URI}/${DB_NAME}`)
+        // console.log(connectionInstance.models)
         console.log(`\n MongoDB connected!! DB HOST: ${connectionInstance.connection.host}`) //kaunse host pe connect hua hai (kaunsa wala database)
         //check this out
     

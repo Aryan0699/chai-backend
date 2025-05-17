@@ -5,6 +5,7 @@ import {User} from "../models/user.models.js"
 export const verifyJWT=asyncHandler(async(req,_,next)=>
 
 {
+    // console.log("VerifyJWT_REQ:",req);
     //get token from frontedn wither through cookies or in header ke nader Authorisation
     try{
         const token=req.cookies?.accessToken || req.header("Authorization")?.replace("Bearer ","");
@@ -13,7 +14,6 @@ export const verifyJWT=asyncHandler(async(req,_,next)=>
     {
         throw new ApiError(401,"Unauthorised Request");
     }  
-
     const decodedToken=jwt.verify(token,process.env.ACCESS_TOKEN_SECRET)//returns payload
     //payload has user details
     const user=await User.findById(decodedToken._id).select("-password -refreshToken")
@@ -24,7 +24,7 @@ export const verifyJWT=asyncHandler(async(req,_,next)=>
         throw new ApiError(401,"Invalid AccessToken")
     }
 
-    req.user=user;//aage use karne ke liye
+    req.user=user;//aage use karne ke liye//Very good and imp step
     next();
     }
     catch(error)

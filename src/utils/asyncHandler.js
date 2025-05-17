@@ -2,7 +2,9 @@ const asyncHandler=(requestHandler)=>
 {
     return (req,res,next)=>  //ye teeno requestHandler se hi aa rahe
     {
-        Promise.resolve(requestHandler(req,res,next)).catch((err)=>next(err))
+        Promise
+        .resolve(requestHandler(req,res,next))
+        .catch((err)=>next(err))
     }
     // Promise async fucntion ko execute karne ke liye use hota hai 
     //,then .resolve if fn executed 

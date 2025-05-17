@@ -1,7 +1,7 @@
 import express from "express"
 import cookieParser from "cookie-parser";
 import cors from "cors"
-const app=express();
+const app=express(); //access all functionality of routing and others
 
 
 //Configuration
@@ -14,7 +14,7 @@ app.use(cors(
 )) //allow all routes object pass karke bata sakte ho kisko allow karn ahi kisko nahi
 // export {app}
 
-app.use(express.json({
+app.use(express.json({ //req.body ka access dega
     limit:"16kb"
 })) //isse jyada ka json data nahi aana chahiye //pehele body parser use karna padta tha vo taking json
 

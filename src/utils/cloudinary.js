@@ -29,10 +29,11 @@ const uploadOnCloudinary= async(localFilePath)=>
             resource_type:"auto" //imgae ki video hoga auto matlab kuch bhi chalega
         })
         //file has been uploaded successfully
+        // console.log(response)
         console.log("File is uploaded on Cloudinary!! ResponseUrl:",response.url)//vo url jo ki usne diya hai to use
         fs.unlinkSync(localFilePath); 
         return response //jo field chaiye le lo 
-    }
+    }   
     catch(error)
     {
         //doubt sir bole ki upload hone ke baad link karo par code me upload nahi hua to unlink kar rahe
