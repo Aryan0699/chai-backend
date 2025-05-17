@@ -124,12 +124,6 @@ const registerUser = asyncHandler(async (req, res) => {
     new ApiResponse(201, createdUser, "User Registered Successfully") //object with all information returned
   )
 
-
-
-
-
-
-
 })
 
 
