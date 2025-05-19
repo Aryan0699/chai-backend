@@ -2,10 +2,9 @@ import { Video } from "../models/video.model.js";
 import ApiResponse from "../utils/ApiResponse.js";
 import { asyncHandler } from "../utils/asyncHandler.js"
 import { v2 as cloudinary } from "cloudinary"
-import mongoose, { trusted } from "mongoose"
 import { uploadOnCloudinary } from "../utils/cloudinary.js";
 import { ApiError } from "../utils/ApiError.js";
-import { application } from "express";
+import mongoose from "mongoose";
 
 
 const findVideoById = async (videoId) => {
@@ -21,6 +20,82 @@ const findVideoById = async (videoId) => {
     return video
 }
 
+//Video ek collection hai
+//frontend ko ye baatana hoga ki kitne videos the total me
+const getALLVideos = asyncHandler(async (req, res, next) => {
+    const { page = 1, limit = 10, query = "", sortBy, sortType = 1, userId } = req.query
+
+    // console.log(query)
+    //query me quotes aa rahe isliye regex galat aayega remove qoutes
+    const cleanedQuery = query.slice(1, -1).trim();
+    // console.log(cleanedQuery)
+    const regex = new RegExp(cleanedQuery, "i");
+    // console.log(regex)
+    //if query="" then it will give all the videos 
+
+    const skip = (page - 1) * limit;
+    /* M1 to find total documents
+        const totalVideoCount=await Video.countDocuments();
+        console.log(totalVideoCount);
+    */
+    //upar se kitne documnet/video leave karne hai vo batayega aur phir limit lagake uss page wale le liye
+    const videos = await Video.aggregate([{
+        $match: {
+            $or: [
+                {
+                    description: {
+                        $regex: regex //  /pizza/ works but "pizza"  wont work a RegExp is needed not a string so query wont work first need to convert
+
+                    }
+                },
+                {
+                    title: {
+                        $regex: regex
+                    }
+                }
+            ]
+        }
+    }, {
+        $match: {
+            owner: new mongoose.Types.ObjectId(userId) //userId number hota ye objectID hai
+        }
+    }
+        // {
+        //     $count:"count"
+        //     //Not correct MongoDB replaces all documents with a single document like: { count: <number> } //no dcouments left after this
+        //     //need to use facet to run parellel pipelines or count seperately
+        // }
+        ,
+    {
+        $facet: {
+            totalCount: [
+                {
+                    $count: "count"
+                }
+            ],
+            paginatedVideos: [
+                {
+                    $sort: 
+                    {
+                        [sortBy]:1 //since its a variable therefore in square brackets
+                    }
+                }, 
+                {
+
+                    $skip: skip
+
+                }, 
+                {
+                    $limit:Number(limit)
+                }
+            ]
+        }
+    }
+    ])
+    // console.log("Aggregation:", videos);
+
+    res.status(200).json(new ApiResponse(200, videos, "Videos Fetched Successfully"))
+})
 
 
 //title,description,thumbnail,video,duration send karna hai response me
@@ -34,6 +109,15 @@ const publishAVideo = asyncHandler(async (req, res, next) => {
         throw new ApiError(400, `description is required`)
 
     console.log(title, "  ", description);
+    //chekced if already uploaded
+    const existingVideo = await Video.findOne({
+        title: title.trim(),
+        owner: req.user._id,
+    });
+
+    if (existingVideo) {
+        throw new ApiError(409, "You have already uploaded a video with this title");
+    }
 
     // console.log(req.files.videoFile[0].path)
     //? nahi lagaya tha to ye checks nahi kaam kar rahe the
@@ -45,7 +129,7 @@ const publishAVideo = asyncHandler(async (req, res, next) => {
 
     const video = await uploadOnCloudinary(videoLocalPAth)
     const thumbnail = await uploadOnCloudinary(thumbnailLocalPath)
-    // console.log(video);
+    console.log(video);
     if (!video.url || !thumbnail.url) {
         throw new ApiResponse(500, "Error Uploading On Cloudinary")
     }
@@ -165,4 +249,26 @@ const deleteVideo = asyncHandler(async (req, res, next) => {
         new ApiResponse(201, {}, "Video deleted successfully")
     )
 })
-export { publishAVideo, getVideoByID, updateVideo, deleteVideo }
+
+const togglePublishStatus = asyncHandler(async (req, res) => {
+    const { videoId } = req.params
+
+    const video = await findVideoById(videoId);
+
+    const toggledVideo = await Video.findByIdAndUpdate(videoId,
+        {
+            $set: {
+                isPublished: !video.isPublished //cannot directly access isPublished
+            }
+        },
+        {
+            new: true
+        })
+
+    const message = toggledVideo.isPublished ? "Video is now Published" : "Video is now unpublished";
+    res.status(200)
+        .json(new ApiResponse(200, toggledVideo, message))
+})
+
+
+export { publishAVideo, getVideoByID, updateVideo, deleteVideo, togglePublishStatus, getALLVideos }
