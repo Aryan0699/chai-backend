@@ -75,23 +75,48 @@ const getALLVideos = asyncHandler(async (req, res, next) => {
             ],
             paginatedVideos: [
                 {
-                    $sort: 
+                    $sort:
                     {
-                        [sortBy]:1 //since its a variable therefore in square brackets
+                        [sortBy]: 1 //since its a variable therefore in square brackets
                     }
-                }, 
+                },
                 {
 
                     $skip: skip
 
-                }, 
+                },
                 {
-                    $limit:Number(limit)
+                    $limit: Number(limit)
+                },
+                {
+                    $lookup: {
+                        from: "users",
+                        localField: "owner",
+                        foreignField: "_id",
+                        as: "owner",
+                        pipeline: [
+                            {
+                                $project: {
+                                    fullname: 1,
+                                    username: 1,
+                                    avatar: 1
+                                }
+                            }
+                        ]
+                    },
+                },
+                {
+                    $addFields:
+                    {
+                        owner: {
+                            $first: "$owner"
+                        }
+                    }
                 }
             ]
         }
     }
-    ])
+    ],)
     // console.log("Aggregation:", videos);
 
     res.status(200).json(new ApiResponse(200, videos, "Videos Fetched Successfully"))

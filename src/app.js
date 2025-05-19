@@ -29,11 +29,13 @@ app.use(cookieParser()) //parse to req.cookies res.cookie ka access deta hai
 
 import userRouter from "./routes/user.routes.js";
 import { videoRouter } from "./routes/video.routes.js";
+import { tweetRouter } from "./routes/tweet.routes.js";
 //define a url that will be specifically for the user routes like register/login
 //router ko lane ke liye middleware lagega 
 //iss endpoint par control userRouter ke pass aa gaya ab aage ke route vo dekhega
 app.use("/api/v1/users",userRouter)
 app.use("/api/v1/videos",videoRouter)
+app.use("/api/v1/tweets",tweetRouter)
 //ye ek ap hai uska version 1 hai
 
 
